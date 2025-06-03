@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoLocation Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>GeoLocation Tracker</h1>
+            <p>Реальное время отслеживания местоположения с автоматическим обновлением данных</p>
+        </header>
+
+        <main>
+            <section class="features">
+                <div class="feature-card">
+                    <div class="icon">📍</div>
+                    <h3>Точное определение</h3>
+                    <p>Используем современные технологии геолокации для точного определения координат</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">⚡</div>
+                    <h3>Реальное время</h3>
+                    <p>Мгновенное обновление данных при изменении местоположения</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🔒</div>
+                    <h3>Конфиденциальность</h3>
+                    <p>Ваши данные защищены и не передаются третьим лицам</p>
+                </div>
+            </section>
+
+            <section class="map-section">
+                <h2>Ваше текущее местоположение</h2>
+                <div id="map"></div>
+                <div class="status">
+                    <p id="location-status">Статус: Отслеживание не активно</p>
+                    <p id="coordinates">Координаты: Не доступны</p>
+                    <p id="accuracy">Точность: Не доступна</p>
+                </div>
+                <div class="controls">
+                    <button id="start-tracking" class="btn primary">Начать отслеживание</button>
+                    <button id="stop-tracking" class="btn secondary" disabled>Остановить</button>
+                    <button id="share-location" class="btn accent" disabled>Поделиться местоположением</button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2023 GeoLocation Tracker | Разработка модуля программного обеспечения</p>
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Инициализация карты
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Переменные для отслеживания
+        let watchId = null;
+        let marker = null;
+        let circle = null;
+        
+        // Элементы DOM
+        const startBtn = document.getElementById('start-tracking');
+        const stopBtn = document.getElementById('stop-tracking');
+        const shareBtn = document.getElementById('share-location');
+        const locationStatus = document.getElementById('location-status');
+        const coordinatesDisplay = document.getElementById('coordinates');
+        const accuracyDisplay = document.getElementById('accuracy');
+
+        // Функция успешного получения геолокации
+        function success(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+
+            // Обновление статуса
+            locationStatus.textContent = 'Статус: Активное отслеживание';
+            coordinatesDisplay.textContent = `Координаты: Широта ${lat.toFixed(6)}, Долгота ${lng.toFixed(6)}`;
+            accuracyDisplay.textContent = `Точность: ±${Math.round(accuracy)} метров`;
+
+            // Если маркер существует, удаляем его
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            
+            // Если круг точности существует, удаляем его
+            if (circle) {
+                map.removeLayer(circle);
+            }
+
+            // Создаем новый маркер
+            marker = L.marker([lat, lng]).addTo(map)
+                .bindPopup("Вы находитесь здесь").openPopup();
+
+            // Создаем круг, показывающий точность
+            circle = L.circle([lat, lng], {
+                color: '#4a6fa5',
+                fillColor: '#4a6fa5',
+                fillOpacity: 0.2,
+                radius: accuracy
+            }).addTo(map);
+
+            // Центрируем карту на текущем местоположении
+            map.setView([lat, lng], 15);
+            
+            // Активируем кнопку "Поделиться"
+            shareBtn.disabled = false;
+        }
+
+        // Функция обработки ошибок
+        function error(err) {
+            console.warn(`ERROR(${err.code}): ${err.message}`);
+            locationStatus.textContent = `Статус: Ошибка (${err.message})`;
+            
+            if (err.code === 1) {
+                alert("Ошибка: Доступ к геолокации запрещен. Пожалуйста, разрешите доступ в настройках браузера.");
+            } else {
+                alert("Ошибка при получении местоположения: " + err.message);
+            }
+        }
+
+        // Опции для геолокации
+        const options = {
+            enableHighAccuracy: true,
+            maximumAge: 0
+        };
+
+        // Обработчик кнопки "Начать отслеживание"
+        startBtn.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(success, error, options);
+                locationStatus.textContent = 'Статус: Определение местоположения...';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            } else {
+                locationStatus.textContent = 'Статус: Геолокация не поддерживается вашим браузером';
+                alert("Геолокация не поддерживается вашим браузером");
+            }
+        });
+
+        // Обработчик кнопки "Остановить"
+        stopBtn.addEventListener('click', () => {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                locationStatus.textContent = 'Статус: Отслеживание остановлено';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                shareBtn.disabled = true;
+            }
+        });
+
+        // Обработчик кнопки "Поделиться местоположением"
+        shareBtn.addEventListener('click', () => {
+            if (marker) {
+                const latlng = marker.getLatLng();
+                const url = `https://www.openstreetmap.org/?mlat=${latlng.lat}&mlon=${latlng.lng}#map=16/${latlng.lat}/${latlng.lng}`;
+                alert(`Ссылка на ваше местоположение: ${url}\nВы можете скопировать ее и отправить другим.`);
+            }
+        });
+    </script>
+</body>
+</html>
